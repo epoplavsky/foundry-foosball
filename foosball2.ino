@@ -30,10 +30,10 @@ void onDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *incoming
     memcpy(&myData, incomingData, sizeof(myData));
     Serial.print("Home: ");
     Serial.println(myData.home);
-    home=myData.away;
+    home=myData.home;
     Serial.print("Away: ");
     Serial.println(myData.away);
-    away=myData.home;
+    away=myData.away;
     Serial.print("Status: ");
     Serial.println(myData.status);
     Serial.println();
