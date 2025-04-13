@@ -9,7 +9,7 @@ const int scoreToWin = 5;
 //Communication libraries
 #include <WiFi.h>
 #include <esp_now.h>
-uint8_t peer_mac_address[] = {0x8C, 0x4F, 0x00, 0x28, 0xC6, 0xC0}; 
+uint8_t peer_mac_address[] = {0x8C, 0x4F, 0x00, 0x28, 0xC6, 0xC0};
 esp_now_peer_info_t peerInfo;
 
 typedef struct struct_message {
@@ -38,9 +38,8 @@ void onDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *incoming
     Serial.print("Status: ");
     Serial.println(myData.status);
     Serial.println();
-    if (home == 0 && away == 0) //ensures that we don't blink on game reset signal
-      return
-    blink_away(5, 250);
+    if (away != 0 && away != scoreToWin) //ensures that we don't blink on game reset signal
+      blink_away(5, 250);
 }
 
 
@@ -96,6 +95,8 @@ void lose() //disables display on losing teams side while winner's flashes
 {
   home = 0;
   away = 0;
+  display.clear();
+  delay(5500);
   sendScores();
 }
 
