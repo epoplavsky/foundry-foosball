@@ -1,6 +1,7 @@
-int away=0;
-int home=0;
-const int scoreToWin = 7;
+int away;
+int home;
+const int scoreToWin = 5;
+
 //Display libraries
 #include <Arduino.h>
 #include <TM1637Display.h>
@@ -8,7 +9,7 @@ const int scoreToWin = 7;
 //Communication libraries
 #include <WiFi.h>
 #include <esp_now.h>
-uint8_t peer_mac_address[] = {0x8C, 0x4F, 0x00, 0x28, 0xC0, 0xAC}; 
+uint8_t peer_mac_address[] = {0x8C, 0x4F, 0x00, 0x28, 0xC0, 0xAC};
 esp_now_peer_info_t peerInfo;
 
 typedef struct struct_message {
@@ -37,15 +38,27 @@ void onDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *incoming
     Serial.print("Status: ");
     Serial.println(myData.status);
     Serial.println();
+    if (away != 0 && away != scoreToWin) //ensures that we don't blink on game reset signal
+      blink_away(5, 250);
 }
+
+
 
 //ToF libraries
 #include <Wire.h>
 #include "Adafruit_VL6180X.h"
 
+
 // Module connection pins (Digital Pins)
-#define CLK 15 //grey
-#define DIO 2 //green wire
+#define CLK 19 //grey
+#define DIO 18 //green wire
+
+const uint8_t SEG_DONE[] = {
+	SEG_B | SEG_C | SEG_D | SEG_E | SEG_G,           // d
+	SEG_A | SEG_B | SEG_C | SEG_D | SEG_E | SEG_F,   // O
+	SEG_C | SEG_E | SEG_G,                           // n
+	SEG_A | SEG_D | SEG_E | SEG_F | SEG_G            // E
+	};
 
 
 
@@ -53,7 +66,7 @@ uint8_t data[] = { 0xff, 0xff, 0xff, 0xff };
 uint8_t blank[] = { 0x00, 0x00, 0x00, 0x00 };
 
 TM1637Display display(CLK, DIO);
-//Adafruit_VL6180X vl = Adafruit_VL6180X();
+Adafruit_VL6180X vl = Adafruit_VL6180X();
 
 void resetGame()
 {
@@ -63,7 +76,7 @@ void resetGame()
 
 void win() //flashes score on winning team's side
 {
-  int cycles = 10;
+  int cycles = 5;
   int cycleDelay = 500;
   for(int i = 0; i < cycles; i++)
     {
@@ -73,18 +86,36 @@ void win() //flashes score on winning team's side
       delay(cycleDelay);
     }
 
+  home = 0;
+  away = 0;
+  sendScores(); //just to make sure both reset
 }
 
 void lose() //disables display on losing teams side while winner's flashes
 {
+  home = 0;
+  away = 0;
   display.clear();
+  delay(5500);
+  sendScores();
 }
-void awayScore()
+
+
+void blink_home(int cycles, int cycleDelay)
 {
-  away++;
-  int cycles = 5;
-  int cycleDelay = 250;
-  for(int i = 0; i < cycles; i++) //flashes away score
+  for(int i = 0; i < cycles; i++) //flashes home score
+    {
+      displayScore();
+      delay(cycleDelay);
+      data[0] = 0x00;
+      data[1] = 0x00;
+      display.setSegments(data);
+      delay(cycleDelay);
+    }
+}
+void blink_away(int cycles, int cycleDelay)
+{
+  for(int i = 0; i < cycles; i++) //flashes home score
     {
       displayScore();
       delay(cycleDelay);
@@ -95,28 +126,10 @@ void awayScore()
     }
 }
 
-void homeScore()
-{
-  home++;
-  int cycles = 5;
-  int cycleDelay = 250;
-  for(int i = 0; i < cycles; i++) //flashes home score
-    {
-      displayScore();
-      delay(cycleDelay);
-      data[0] = 0x00;
-      data[1] = 0x00;
-      display.setSegments(data);
-      delay(cycleDelay);
-    }
 
-}
 
 void displayScore()
 {
-  
-
-
   if (home < 10) //Displays home score
   {
     data[0] = 0x00;
@@ -124,8 +137,8 @@ void displayScore()
   }
   else
   {
-    data[0] = display.encodeDigit(1);
-    data[1] = display.encodeDigit(0);
+    data[0] = display.encodeDigit(home / 10);
+    data[1] = display.encodeDigit(home % 10);
   }
 
   if (away < 10) //Displays away score
@@ -135,10 +148,22 @@ void displayScore()
   }
   else
   {
-    data[2] = display.encodeDigit(1);
-    data[3] = display.encodeDigit(0);
+    data[2] = display.encodeDigit(away / 10);
+    data[3] = display.encodeDigit(away % 10);
   }
   display.setSegments(data);
+}
+void sendScores(){
+    myData.home = away;
+    myData.away = home;
+    esp_err_t result = esp_now_send(peer_mac_address, (const uint8_t *) &myData, sizeof(myData));
+    // Check the result of the sending operation
+    if (result == ESP_OK) {
+      Serial.println("Score data sent successfully");
+    } else {
+      Serial.print("Error sending score data: ");
+      Serial.println(esp_err_to_name(result));
+    }
 }
 
 void setup() {
@@ -174,33 +199,52 @@ void setup() {
 
     Serial.println("ESP-NOW initialized and peer added!");
 
-  //while (! vl.begin()) //loops until ToF sensor is found
-    //Serial.println("Failed to find sensor");
-    //delay(100); //will not find the sensor without this delay
+  while (! vl.begin()) //loops until ToF sensor is found
+    Serial.println("Failed to find sensor");
+    delay(100); //will not find the sensor without this delay
 
-  //Serial.println("Sensor found!");
+  Serial.println("Sensor found!");
+
   display.setBrightness(6);
-  
+  away = 0;
+  home = 0;
+  sendScores();
 }
 
 void loop() {
   // put your main code here, to run repeatedly:
-  //uint8_t range = vl.readRange();
-  //Serial.print("Range: "); Serial.println(range);
-  //displayScore();
-  //if (range < 10 && home  < 7) //ball rolls through the return pipe and max score has not been reached
-    //homeScore();
-  
-  
+  displayScore();
 
-  if(home >= scoreToWin)
-    win();
-  else if (away >= scoreToWin)
+  if (away >= scoreToWin)
     lose();
-  else
-    displayScore();
+
+  uint8_t range = vl.readRange();
+  delay(100);
+  range = vl.readRange(); //if you don't read twice, it will double count the goal for some reason
+  Serial.print("Range: "); Serial.println(range);
+  
+  if (range >= 5)
+  {
+    delay(100);
+    return;
+  }
+
+  if (home  < scoreToWin - 1) //ball rolls through the return pipe and max score has not been reached
+  {
+    home++;
+    sendScores();
+    blink_home(5,250);
+  }
+  else if (home = scoreToWin - 1)
+  {
+    home++;
+    sendScores();
+    win();
+  }
+  //code losing
+
     
-  //delay(0);
+  delay(100);
 
 
 }
