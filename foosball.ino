@@ -38,8 +38,8 @@ void onDataRecv(const esp_now_recv_info_t *esp_now_info, const uint8_t *incoming
     Serial.print("Status: ");
     Serial.println(myData.status);
     Serial.println();
-    if (away != 0 && away != scoreToWin) //ensures that we don't blink on game reset signal
-      blink_away(5, 250);
+    if (home != 0 && home != scoreToWin) //ensures that we don't blink on game reset signal
+      blink_home(5, 250);
 }
 
 
@@ -215,8 +215,8 @@ void loop() {
   // put your main code here, to run repeatedly:
   displayScore();
 
-  if (away >= scoreToWin)
-    lose();
+  if (home >= scoreToWin)
+    win();
 
   uint8_t range = vl.readRange();
   delay(100);
@@ -225,26 +225,24 @@ void loop() {
   
   if (range >= 5)
   {
-    delay(100);
+    //delay(100);
     return;
   }
 
-  if (home  < scoreToWin - 1) //ball rolls through the return pipe and max score has not been reached
+  if (away  < scoreToWin - 1) //ball rolls through the return pipe and max score has not been reached
   {
-    home++;
+    away++;
     sendScores();
-    blink_home(5,250);
+    blink_away(5,250);
   }
-  else if (home = scoreToWin - 1)
+  else if (away = scoreToWin - 1)
   {
-    home++;
+    away++;
     sendScores();
-    win();
+    lose();
   }
   //code losing
 
-    
-  delay(100);
 
 
 }
